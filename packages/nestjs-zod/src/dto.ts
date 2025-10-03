@@ -214,11 +214,6 @@ function generateJsonSchema(
     } 
   }) : zodV3ToOpenAPI(schema)
 
-  if ('_zod' in schema) {
-    const sch = z.globalRegistry.get(schema);
-    console.log(`sch? ${sch} | ${sch?.description}`);
-  }
-
   const $defs = ('$defs' in generatedJsonSchema && generatedJsonSchema.$defs) ? generatedJsonSchema.$defs : undefined;
 
   // Ensure the $ref is pointing to the correct schema
