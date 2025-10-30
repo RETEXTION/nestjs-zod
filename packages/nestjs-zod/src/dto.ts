@@ -6,6 +6,12 @@ import { DEFS_KEY, EMPTY_TYPE_KEY, HAS_CONST_KEY, HAS_NULL_KEY, PARENT_ADDITIONA
 import { walkJsonSchema } from './utils';
 import { zodV3ToOpenAPI } from './zodV3ToOpenApi';
 
+type SchemaTarget = "draft-4" | "draft-7" | "draft-2020-12" | "openapi-3.0";
+
+export interface ZodDtoOptions {
+  target: SchemaTarget
+}
+
 export interface ZodDto<
   TSchema extends UnknownSchema
 > {
@@ -19,7 +25,7 @@ export interface ZodDto<
 
 export function createZodDto<
   TSchema extends UnknownSchema|z3.ZodTypeAny|($ZodType & { parse: (input: unknown) => unknown })
->(schema: TSchema) {
+>(schema: TSchema, options?: ZodDtoOptions) {
   class AugmentedZodDto {
     public static readonly isZodDto = true
     public static readonly schema = schema
@@ -42,7 +48,7 @@ export function createZodDto<
         }
 
         public static _OPENAPI_METADATA_FACTORY() {
-          return openApiMetadataFactory({ schema: this.schema, io: "output" });
+          return openApiMetadataFactory({ schema: this.schema, io: "output", target: options?.target ?? 'draft-2020-12' });
         }
       }
 
@@ -52,7 +58,7 @@ export function createZodDto<
     }
 
     public static _OPENAPI_METADATA_FACTORY() {
-      return openApiMetadataFactory({ schema: this.schema, io: "input" });
+      return openApiMetadataFactory({ schema: this.schema, io: "input", target: options?.target ?? 'draft-2020-12' });
     }
   }
 
@@ -62,9 +68,11 @@ export function createZodDto<
 function openApiMetadataFactory({ 
   schema, 
   io,
+  target,
 }: { 
   schema: UnknownSchema | z3.ZodTypeAny | ($ZodType & { parse: (input: unknown) => unknown; }), 
   io: 'input' | 'output',
+  target: SchemaTarget,
 }) {
   if (!('_zod' in schema) && '_def' in schema && io === 'output') {
     throw new Error('[nestjs-zod] Output schemas are not supported for zod@v3');
@@ -74,7 +82,7 @@ function openApiMetadataFactory({
     return {};
   }
 
-  const { $defs, $schema, ...generatedJsonSchema } = generateJsonSchema(schema, io);
+  const { $defs, $schema, ...generatedJsonSchema } = generateJsonSchema(schema, io, target);
 
   /**
    * nestjs expects us to return a record of properties
@@ -184,9 +192,10 @@ function openApiMetadataFactory({
   return properties;
 }
 
-function generateJsonSchema(schema: z3.ZodTypeAny | ($ZodType & { parse: (input: unknown) => unknown; }), io: 'input' | 'output') {
+function generateJsonSchema(schema: z3.ZodTypeAny | ($ZodType & { parse: (input: unknown) => unknown; }), io: 'input' | 'output', target: SchemaTarget) {
   const generatedJsonSchema = '_zod' in schema ? toJSONSchema(schema, {
     io,
+    target,
     override: ({ jsonSchema }) => {
         if (io === 'output' && 'id' in jsonSchema) {
             jsonSchema.id = `${jsonSchema.id}_Output`;
